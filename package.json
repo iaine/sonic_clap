@@ -1,0 +1,26 @@
+{
+  "name": "sonic_clap",
+  "version": "1.0.0",
+  "description": "An application to engage with CLAP",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "electron": "^42.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iaine/sonic_clap.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/iaine/sonic_clap/issues"
+  },
+  "homepage": "https://github.com/iaine/sonic_clap#readme"
+}

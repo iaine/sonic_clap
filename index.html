@@ -1,0 +1,31 @@
+<!DOCTYPE html>  
+<html>  
+  <head>  
+    <meta charset="UTF-8">  
+    <title>Python + Electron App</title>  
+    <style>  
+      body { font-family: Arial, sans-serif; text-align: center; padding: 2rem; }  
+      #result { margin-top: 2rem; color: #2c3e50; }  
+    </style>  
+  </head>  
+  <body>  
+    <h1>Python + Electron Demo</h1>  
+    <input type="text" id="input" placeholder="Enter text...">  
+    <button onclick="runPython()">Run Python Script</button>  
+    <div id="result"></div>  
+        <script>  
+        const { ipcRenderer } = require('electron');  
+        
+        function runPython() {  
+            const inputText = document.getElementById('input').value;  
+            // Send input to main process via IPC  
+            ipcRenderer.send('run-python', inputText);  
+        }  
+        
+        // Listen for results from main process  
+        ipcRenderer.on('python-result', (event, result) => {  
+            document.getElementById('result').textContent = result;  
+        });  
+        </script>
+  </body>  
+</html>  
