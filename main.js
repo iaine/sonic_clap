@@ -9,7 +9,8 @@ const { spawn } = require('child_process');
 ipcMain.on('run-python', (event, inputText) => {  
   // Spawn a Python process  
   const pythonProcess = spawn('python3', [path.join(__dirname, 'backend/script.py')]);  
- 
+  //spawn build
+  //const pythonProcess = spawn(path.join(__dirname, 'backend/dist/script.exe'));
   // Send input to Python via stdin  
   pythonProcess.stdin.write(inputText + '\n');  
   pythonProcess.stdin.end();  
