@@ -1,0 +1,20 @@
+# CLAP Spatial Sonification — Desktop App
+# pip install -r requirements.txt
+
+# Desktop window / webview
+pywebview>=5.0.0
+
+# MS-CLAP (Microsoft CLAP 2022/2023)
+msclap>=1.3.3
+
+# LAION-CLAP
+laion-clap>=1.1.6
+
+# Core ML (usually pulled in transitively)
+torch>=2.0.0
+torchaudio>=2.0.0
+torchcodec
+transformers>=4.30.0
+numpy>=1.24.0
+librosa>=0.10.0
+soundfile>=0.12.1

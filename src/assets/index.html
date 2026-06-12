@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CLAP Spatial Sonification</title>
+<style>
+/* ── reset & tokens ──────────────────────────────────────────────────────── */
+:root {
+  --bg:        #0e0f11;
+  --bg2:       #14151a;
+  --bg3:       #1c1d24;
+  --bg4:       #23252e;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.13);
+  --border3:   rgba(255,255,255,0.22);
+  --text:      #dedad2;
+  --text2:     #7a7870;
+  --text3:     #3e3d3a;
+  --purple:    #AFA9EC;
+  --purple-d:  #534AB7;
+  --teal:      #5DCAA5;
+  --teal-d:    #0F6E56;
+  --coral:     #F0997B;
+  --amber:     #EF9F27;
+  --green:     #97C459;
+  --red:       #E24B4A;
+  --blue:      #85B7EB;
+  --r: 10px;
+  --mono: 'JetBrains Mono','Fira Code','Cascadia Code',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:var(--mono);font-size:13px;
+  display:flex;flex-direction:column;
+}
+
+/* ── titlebar ─────────────────────────────────────────────────────────────── */
+#titlebar{
+  height:40px;display:flex;align-items:center;padding:0 16px;gap:10px;
+  background:var(--bg2);border-bottom:0.5px solid var(--border);
+  flex-shrink:0;-webkit-app-region:drag;user-select:none;
+}
+#titlebar .logo{font-size:12px;font-weight:500;color:var(--text2);letter-spacing:.06em}
+#titlebar .sep{width:0.5px;height:16px;background:var(--border2)}
+#titlebar .tab{
+  padding:4px 12px;border-radius:5px;font-size:11px;cursor:pointer;
+  color:var(--text2);transition:all .15s;-webkit-app-region:no-drag;
+}
+#titlebar .tab:hover{background:var(--bg3);color:var(--text)}
+#titlebar .tab.active{background:var(--bg4);color:var(--text);border:0.5px solid var(--border2)}
+#titlebar .spacer{flex:1}
+#playStatus{
+  font-size:11px;color:var(--text2);padding:3px 10px;
+  border-radius:4px;background:var(--bg3);border:0.5px solid var(--border);
+  -webkit-app-region:no-drag;
+}
+
+/* ── layout ───────────────────────────────────────────────────────────────── */
+#app{display:flex;flex:1;overflow:hidden}
+
+/* sidebar */
+#sidebar{
+  width:300px;flex-shrink:0;
+  background:var(--bg2);border-right:0.5px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+#sidebarInner{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+#sidebarInner::-webkit-scrollbar{width:4px}
+#sidebarInner::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* main content */
+#main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.page{display:none;flex:1;overflow-y:auto;padding:20px;flex-direction:column;gap:16px}
+.page.active{display:flex}
+.page::-webkit-scrollbar{width:5px}
+.page::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── typography ──────────────────────────────────────────────────────────── */
+h2{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text2)}
+h3{font-size:14px;font-weight:500;color:var(--text)}
+
+/* ── cards ───────────────────────────────────────────────────────────────── */
+.card{
+  background:var(--bg3);border:0.5px solid var(--border);
+  border-radius:var(--r);padding:14px 16px;
+}
+.card-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+
+/* ── pills ───────────────────────────────────────────────────────────────── */
+.pill{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;letter-spacing:.04em}
+.pill-ms   {background:rgba(175,169,236,.15);color:var(--purple);border:0.5px solid rgba(175,169,236,.3)}
+.pill-laion{background:rgba(93,202,165,.15); color:var(--teal);  border:0.5px solid rgba(93,202,165,.3)}
+.pill-ok   {background:rgba(151,196,89,.12); color:var(--green); border:0.5px solid rgba(151,196,89,.3)}
+.pill-err  {background:rgba(226,75,74,.12);  color:var(--red);   border:0.5px solid rgba(226,75,74,.3)}
+.pill-idle {background:var(--bg4);color:var(--text2);border:0.5px solid var(--border2)}
+
+/* ── buttons ─────────────────────────────────────────────────────────────── */
+.btn{
+  background:var(--bg4);border:0.5px solid var(--border2);
+  border-radius:6px;color:var(--text);font-family:var(--mono);
+  font-size:12px;padding:7px 14px;cursor:pointer;transition:all .15s;
+  white-space:nowrap;display:inline-flex;align-items:center;gap:6px;
+}
+.btn:hover{background:rgba(255,255,255,.07);border-color:var(--border3)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn-primary{border-color:rgba(175,169,236,.5);color:var(--purple)}
+.btn-primary:hover{background:rgba(175,169,236,.1)}
+.btn-run{
+  width:100%;justify-content:center;
+  background:rgba(175,169,236,.12);border-color:rgba(175,169,236,.4);
+  color:var(--purple);font-size:13px;padding:10px;
+}
+.btn-run:hover{background:rgba(175,169,236,.2)}
+.btn-run:disabled{background:var(--bg4)}
+.btn-teal{border-color:rgba(93,202,165,.4);color:var(--teal)}
+.btn-teal:hover{background:rgba(93,202,165,.08)}
+.btn-danger{border-color:rgba(226,75,74,.4);color:var(--red)}
+.btn-danger:hover{background:rgba(226,75,74,.08)}
+.btn-sm{padding:4px 10px;font-size:11px}
+
+/* ── form elements ───────────────────────────────────────────────────────── */
+label.field-label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px}
+input[type=text],textarea,select{
+  width:100%;background:var(--bg4);border:0.5px solid var(--border2);
+  border-radius:6px;color:var(--text);font-family:var(--mono);
+  font-size:12px;padding:7px 10px;outline:none;
+  transition:border-color .15s;
+}
+input[type=text]:focus,textarea:focus,select:focus{border-color:rgba(175,169,236,.5)}
+textarea{resize:vertical;min-height:80px;line-height:1.5}
+select{cursor:pointer}
+input[type=range]{accent-color:var(--purple);width:100%}
+.path-row{display:flex;gap:6px;align-items:stretch}
+.path-row input{flex:1;min-width:0}
+.toggle-row{display:flex;gap:8px}
+.toggle-btn{
+  flex:1;padding:6px;text-align:center;border:0.5px solid var(--border2);
+  border-radius:6px;cursor:pointer;font-size:12px;color:var(--text2);
+  background:var(--bg4);transition:all .15s;
+}
+.toggle-btn.active-ms   {border-color:rgba(175,169,236,.5);color:var(--purple);background:rgba(175,169,236,.1)}
+.toggle-btn.active-laion{border-color:rgba(93,202,165,.5); color:var(--teal); background:rgba(93,202,165,.1)}
+
+/* ── progress ────────────────────────────────────────────────────────────── */
+#progressSection{display:none}
+.progress-track{height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;border-radius:2px;transition:width .3s;background:var(--purple)}
+.progress-fill.laion{background:var(--teal)}
+.log-box{
+  background:var(--bg);border:0.5px solid var(--border);
+  border-radius:6px;padding:10px;font-size:11px;color:var(--text2);
+  max-height:120px;overflow-y:auto;line-height:1.7;
+}
+.log-box::-webkit-scrollbar{width:3px}
+.log-box::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.log-line{color:var(--text3)}
+.log-line.info{color:var(--text2)}
+.log-line.ok{color:var(--teal)}
+.log-line.err{color:var(--red)}
+
+/* ── file scan list ──────────────────────────────────────────────────────── */
+.file-list-box{
+  background:var(--bg);border:0.5px solid var(--border);
+  border-radius:6px;max-height:130px;overflow-y:auto;
+}
+.file-item{
+  display:flex;align-items:center;gap:8px;padding:5px 10px;
+  border-bottom:0.5px solid var(--border);font-size:11px;
+}
+.file-item:last-child{border-bottom:none}
+.file-icon{width:5px;height:5px;border-radius:50%;background:var(--text3);flex-shrink:0}
+
+/* ── tag chips ───────────────────────────────────────────────────────────── */
+.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chip{
+  padding:3px 9px;border-radius:20px;font-size:11px;cursor:pointer;
+  border:0.5px solid var(--border2);background:var(--bg4);color:var(--text2);
+  transition:all .15s;
+}
+.chip.on-purple{background:rgba(175,169,236,.12);color:var(--purple);border-color:rgba(175,169,236,.35)}
+.chip.on-teal  {background:rgba(93,202,165,.12); color:var(--teal); border-color:rgba(93,202,165,.35)}
+.chip.on-amber {background:rgba(239,159,39,.12); color:var(--amber);border-color:rgba(239,159,39,.35)}
+
+/* ── dual fields ─────────────────────────────────────────────────────────── */
+.dual{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+canvas.field{
+  width:100%;aspect-ratio:1;border:0.5px solid var(--border);
+  border-radius:8px;background:var(--bg3);cursor:crosshair;display:block;
+}
+.field-stats{font-size:11px;color:var(--text2);margin-top:6px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-top:4px}
+.leg-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
+
+/* ── matrix ──────────────────────────────────────────────────────────────── */
+.matrix-scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:11px}
+th,td{padding:5px 10px;text-align:right;white-space:nowrap;border-bottom:0.5px solid var(--border)}
+th{color:var(--text2);font-weight:400}
+th:first-child,td:first-child{text-align:left;color:var(--text2)}
+td.cell{cursor:pointer;border-radius:3px;transition:filter .1s}
+td.cell:hover{filter:brightness(1.4);outline:1px solid rgba(255,255,255,.2)}
+
+/* ── diff rows ───────────────────────────────────────────────────────────── */
+.diff-row{
+  display:flex;align-items:center;gap:10px;padding:5px 0;
+  border-bottom:0.5px solid var(--border);font-size:12px;
+}
+.diff-row:last-child{border-bottom:none}
+.diffbar{height:5px;border-radius:3px;min-width:2px}
+
+/* ── metric cards ────────────────────────────────────────────────────────── */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px}
+.metric{background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:10px 14px}
+.metric .mk{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.metric .mv{font-size:20px;font-weight:500;color:var(--text)}
+.mv.hi{color:var(--green)}.mv.md{color:var(--amber)}.mv.lo{color:var(--red)}
+
+/* ── empty state ─────────────────────────────────────────────────────────── */
+.empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;padding:60px 20px;color:var(--text3);text-align:center;
+}
+.empty .icon{font-size:32px;opacity:.3}
+
+/* ── sonification controls ───────────────────────────────────────────────── */
+.son-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ctrl-row{display:flex;flex-direction:column;gap:5px}
+.ctrl-label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between}
+</style>
+</head>
+<body>
+
+<!-- ── titlebar ──────────────────────────────────────────────────────────── -->
+<div id="titlebar">
+  <span class="logo">CLAP SONIFICATION</span>
+  <div class="sep"></div>
+  <span class="tab active" data-page="setup" onclick="switchTab(this,'setup')">configure</span>
+  <span class="tab" data-page="visualise" onclick="switchTab(this,'visualise')">visualise</span>
+  <span class="tab" data-page="matrix"    onclick="switchTab(this,'matrix')">matrix</span>
+  <span class="tab" data-page="diff"      onclick="switchTab(this,'diff')">model diff</span>
+  <div class="spacer"></div>
+  <span id="playStatus">idle</span>
+</div>
+
+<!-- ── app shell ─────────────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- ── sidebar ───────────────────────────────────────────────────────── -->
+  <div id="sidebar">
+    <div id="sidebarInner">
+
+      <!-- Audio directory -->
+      <div>
+        <label class="field-label">Audio directory</label>
+        <div class="path-row">
+          <input type="text" id="audioDir" placeholder="/path/to/audio" readonly>
+          <button class="btn btn-sm" onclick="pickDir()">browse</button>
+        </div>
+        <div id="scanResult" style="font-size:11px;color:var(--text2);margin-top:5px"></div>
+      </div>
+
+      <!-- Scanned files -->
+      <div id="scannedFiles" style="display:none">
+        <label class="field-label">Files found <span id="fileCount"></span></label>
+        <div class="file-list-box" id="fileListBox"></div>
+      </div>
+
+      <!-- Tags -->
+      <div>
+        <label class="field-label">Text tags <span style="color:var(--text3)">(comma-separated)</span></label>
+        <textarea id="tagsInput" placeholder="dog barking, rain, speech, music, silence, noise"></textarea>
+        <div class="chip-row" id="tagPreview"></div>
+      </div>
+
+      <!-- Extensions -->
+      <div>
+        <label class="field-label">File extensions</label>
+        <input type="text" id="extInput" value=".wav, .mp3, .flac, .ogg, .aif, .aiff">
+      </div>
+
+      <!-- Model selection -->
+      <div>
+        <label class="field-label">Models</label>
+        <div class="toggle-row">
+          <div class="toggle-btn active-ms" id="toggleMS" onclick="toggleModel('ms')">MS-CLAP</div>
+          <div class="toggle-btn active-laion" id="toggleLaion" onclick="toggleModel('laion')">LAION-CLAP</div>
+        </div>
+      </div>
+
+      <!-- Output -->
+      <div>
+        <label class="field-label">Save results to</label>
+        <div class="path-row">
+          <input type="text" id="outputPath" placeholder="clap_results.json">
+          <button class="btn btn-sm" onclick="pickOutput()">browse</button>
+        </div>
+      </div>
+
+      <!-- Run -->
+      <button class="btn btn-run" id="btnRun" onclick="runAnalysis()" disabled>
+        ▶ run analysis
+      </button>
+
+      <!-- Progress -->
+      <div id="progressSection">
+        <label class="field-label">MS-CLAP <span id="msStage"></span></label>
+        <div class="progress-track"><div class="progress-fill" id="msBar" style="width:0%"></div></div>
+        <label class="field-label" style="margin-top:8px">LAION-CLAP <span id="laionStage"></span></label>
+        <div class="progress-track"><div class="progress-fill laion" id="laionBar" style="width:0%"></div></div>
+        <div class="log-box" id="logBox" style="margin-top:8px"></div>
+      </div>
+
+      <!-- Load existing results -->
+      <div style="border-top:0.5px solid var(--border);padding-top:12px">
+        <label class="field-label">Load existing results</label>
+        <button class="btn" style="width:100%;justify-content:center" onclick="loadResults()">↑ open JSON</button>
+      </div>
+
+    </div><!-- /sidebarInner -->
+  </div><!-- /sidebar -->
+
+  <!-- ── main pages ────────────────────────────────────────────────────── -->
+  <div id="main">
+
+    <!-- SETUP page -->
+    <div id="page-setup" class="page active">
+      <div class="empty" id="setupEmpty">
+        <div class="icon">◎</div>
+        <div style="color:var(--text2)">Configure audio directory and tags in the sidebar, then run analysis.</div>
+        <div style="font-size:11px;margin-top:4px">Or load a previously saved <code>clap_results.json</code>.</div>
+      </div>
+      <!-- filled by showResultSummary() -->
+      <div id="resultSummary" style="display:none"></div>
+    </div>
+
+    <!-- VISUALISE page -->
+    <div id="page-visualise" class="page">
+      <div class="empty" id="visEmpty">
+        <div class="icon">◎</div>
+        <div style="color:var(--text2)">No results yet. Run analysis or load a JSON file.</div>
+      </div>
+      <div id="visContent" style="display:none">
+        <!-- filter chips -->
+        <div class="card" style="padding:10px 14px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">tags</span>
+            <div class="chip-row" id="visTagChips" style="margin:0;flex:1"></div>
+            <span style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">files</span>
+            <div class="chip-row" id="visFileChips" style="margin:0;flex:1"></div>
+          </div>
+        </div>
+        <!-- metrics -->
+        <div class="metrics" id="visMetrics"></div>
+        <!-- dual fields -->
+        <div class="dual">
+          <div class="card">
+            <div class="card-header"><span class="pill pill-ms">MS-CLAP</span><span style="color:var(--text2);font-size:11px">microsoft/msclap</span></div>
+            <canvas class="field" id="fieldMS" width="500" height="500"></canvas>
+            <div class="legend">
+              <span><span class="leg-dot" style="background:var(--purple)"></span>audio emb</span>
+              <span><span class="leg-dot" style="background:var(--teal)"></span>text tag</span>
+              <span style="color:var(--text3)">x=pan · ring=distance</span>
+            </div>
+            <div class="field-stats" id="statsMS"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="pill pill-laion">LAION-CLAP</span><span style="color:var(--text2);font-size:11px">LAION-AI/CLAP</span></div>
+            <canvas class="field" id="fieldLaion" width="500" height="500"></canvas>
+            <div class="legend">
+              <span><span class="leg-dot" style="background:var(--purple)"></span>audio emb</span>
+              <span><span class="leg-dot" style="background:var(--teal)"></span>text tag</span>
+              <span style="color:var(--text3)">x=pan · ring=distance</span>
+            </div>
+            <div class="field-stats" id="statsLaion"></div>
+          </div>
+        </div>
+        <!-- sonification controls -->
+        <div class="card">
+          <div class="card-header">
+            <h2>sonification controls</h2>
+            <div style="margin-left:auto;display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="playAll()">▶ play all</button>
+              <button class="btn btn-danger btn-sm" onclick="stopAll()">■ stop</button>
+              <button class="btn btn-teal btn-sm" onclick="exportJSON()">↓ export json</button>
+            </div>
+          </div>
+          <div class="son-grid">
+            <div class="ctrl-row">
+              <div class="ctrl-label"><span>base freq (Hz)</span><span id="vFreq">220</span></div>
+              <input type="range" id="rFreq" min="80" max="880" value="220" step="10" oninput="document.getElementById('vFreq').textContent=this.value">
+            </div>
+            <div class="ctrl-row">
+              <div class="ctrl-label"><span>tone duration (ms)</span><span id="vDur">600</span></div>
+              <input type="range" id="rDur" min="100" max="2000" value="600" step="50" oninput="document.getElementById('vDur').textContent=this.value">
+            </div>
+            <div class="ctrl-row">
+              <div class="ctrl-label"><span>interval (ms)</span><span id="vInt">900</span></div>
+              <input type="range" id="rInt" min="200" max="3000" value="900" step="100" oninput="document.getElementById('vInt').textContent=this.value">
+            </div>
+            <div class="ctrl-row">
+              <div class="ctrl-label"><span>waveform</span></div>
+              <select id="selWave">
+                <option value="sine">sine</option>
+                <option value="triangle">triangle</option>
+                <option value="sawtooth">sawtooth</option>
+                <option value="square">square</option>
+              </select>
+            </div>
+            <div class="ctrl-row">
+              <div class="ctrl-label"><span>play mode</span></div>
+              <select id="selMode">
+                <option value="sequential">sequential (MS then LAION)</option>
+                <option value="simultaneous">simultaneous (both models)</option>
+                <option value="diff">diff-only (most disagreed first)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /visualise -->
+
+    <!-- MATRIX page -->
+    <div id="page-matrix" class="page">
+      <div class="empty" id="matEmpty">
+        <div class="icon">⊞</div>
+        <div style="color:var(--text2)">Run analysis to see the similarity matrix.</div>
+      </div>
+      <div id="matContent" style="display:none">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <h3>similarity matrix</h3>
+          <button class="btn btn-sm" id="btnMatMS"    onclick="setMatrixModel('msclap')" style="border-color:rgba(175,169,236,.4);color:var(--purple)">MS-CLAP</button>
+          <button class="btn btn-sm" id="btnMatLaion" onclick="setMatrixModel('laion')">LAION-CLAP</button>
+          <span style="font-size:11px;color:var(--text3);margin-left:4px">click a cell to sonify</span>
+        </div>
+        <div class="card">
+          <div class="matrix-scroll" id="matrixInner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIFF page -->
+    <div id="page-diff" class="page">
+      <div class="empty" id="diffEmpty">
+        <div class="icon">⇄</div>
+        <div style="color:var(--text2)">Run both models to compare disagreements.</div>
+      </div>
+      <div id="diffContent" style="display:none">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <h3>model disagreement</h3>
+          <span style="font-size:11px;color:var(--text2)">|MS-CLAP − LAION-CLAP| sorted descending</span>
+        </div>
+        <div class="metrics" id="diffMetrics"></div>
+        <div class="card">
+          <div id="diffInner"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// state
+// ══════════════════════════════════════════════════════════════════════════════
+let data = null;
+let activeTags  = new Set();
+let activeFiles = new Set();
+let modelMS   = true;
+let modelLaion= true;
+let matrixModel = 'msclap';
+let actx = null, playTimer = null, isPlaying = false;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Python bridge event listener (called by main.py via evaluate_js)
+// ══════════════════════════════════════════════════════════════════════════════
+window.__clapEvent = function(event, payload) {
+  switch(event) {
+    case 'clap_start':
+      log(`▶ starting — ${payload.total_files} files × ${payload.tags.length} tags`, 'info');
+      document.getElementById('progressSection').style.display = 'block';
+      break;
+    case 'clap_progress': {
+      const bar = payload.model === 'msclap' ? 'msBar' : 'laionBar';
+      const stg = payload.model === 'msclap' ? 'msStage' : 'laionStage';
+      document.getElementById(bar).style.width = payload.pct + '%';
+      document.getElementById(stg).textContent = `— ${payload.stage} ${payload.current}/${payload.total}`;
+      log(`[${payload.model}] ${payload.stage} ${payload.current}/${payload.total}`);
+      break;
+    }
+    case 'clap_model_done':
+      log(`✓ ${payload.model} complete`, 'ok');
+      document.getElementById(payload.model === 'msclap' ? 'msBar' : 'laionBar').style.width = '100%';
+      break;
+    case 'clap_done':
+      log('✓ analysis complete', 'ok');
+      document.getElementById('btnRun').disabled = false;
+      document.getElementById('btnRun').textContent = '▶ run analysis';
+      if(payload.saved_to) log(`saved → ${payload.saved_to}`, 'ok');
+      setData(payload.result);
+      switchTab(document.querySelector('[data-page="visualise"]'), 'visualise');
+      break;
+    case 'clap_error':
+      log(`✗ ${payload.message}`, 'err');
+      document.getElementById('btnRun').disabled = false;
+      document.getElementById('btnRun').textContent = '▶ run analysis';
+      break;
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// sidebar actions
+// ══════════════════════════════════════════════════════════════════════════════
+async function pickDir() {
+  const api = window.pywebview?.api;
+  if(!api) { alert('Python bridge not available'); return; }
+  const res = await api.pick_directory();
+  if(!res.path) return;
+  document.getElementById('audioDir').value = res.path;
+  scanDir(res.path);
+  updateRunBtn();
+}
+
+async function scanDir(dir) {
+  const api = window.pywebview?.api;
+  if(!api) return;
+  const exts = parseExtensions();
+  document.getElementById('scanResult').textContent = 'scanning…';
+  const res = await api.scan_directory(dir, exts);
+  if(res.error) {
+    document.getElementById('scanResult').textContent = '✗ ' + res.error;
+    return;
+  }
+  document.getElementById('scanResult').textContent = `${res.count} file(s) found`;
+  const box = document.getElementById('fileListBox');
+  box.innerHTML = res.files.map(f =>
+    `<div class="file-item"><div class="file-icon"></div><span>${f.name}</span><span style="margin-left:auto;color:var(--text3)">${(f.size/1024).toFixed(0)}kb</span></div>`
+  ).join('');
+  document.getElementById('scannedFiles').style.display = res.count ? 'block' : 'none';
+  document.getElementById('fileCount').textContent = `(${res.count})`;
+  updateRunBtn();
+}
+
+async function pickOutput() {
+  const api = window.pywebview?.api;
+  if(!api) return;
+  const res = await api.pick_output_file();
+  if(res.path) document.getElementById('outputPath').value = res.path;
+}
+
+async function loadResults() {
+  const api = window.pywebview?.api;
+  if(!api) return;
+  const res = await api.load_json_dialog();
+  if(!res.ok) { if(res.error !== 'cancelled') log('✗ ' + res.error, 'err'); return; }
+  setData(res.data);
+  switchTab(document.querySelector('[data-page="visualise"]'), 'visualise');
+}
+
+function toggleModel(m) {
+  if(m === 'ms') {
+    modelMS = !modelMS;
+    document.getElementById('toggleMS').className = 'toggle-btn' + (modelMS ? ' active-ms' : '');
+  } else {
+    modelLaion = !modelLaion;
+    document.getElementById('toggleLaion').className = 'toggle-btn' + (modelLaion ? ' active-laion' : '');
+  }
+  updateRunBtn();
+}
+
+function updateRunBtn() {
+  const hasDir  = !!document.getElementById('audioDir').value;
+  const hasTags = parseTags().length > 0;
+  const hasModel= modelMS || modelLaion;
+  document.getElementById('btnRun').disabled = !(hasDir && hasTags && hasModel);
+}
+
+document.getElementById('tagsInput').addEventListener('input', () => {
+  updateTagPreview();
+  updateRunBtn();
+});
+document.getElementById('audioDir').addEventListener('input', updateRunBtn);
+
+function updateTagPreview() {
+  const tags = parseTags();
+  const colors = ['on-purple','on-teal','on-amber'];
+  document.getElementById('tagPreview').innerHTML =
+    tags.map((t,i) => `<span class="chip ${colors[i%3]}">${t}</span>`).join('');
+}
+
+async function runAnalysis() {
+  const api = window.pywebview?.api;
+  if(!api) { alert('Python bridge not available'); return; }
+  const dir    = document.getElementById('audioDir').value;
+  const tags   = parseTags();
+  const exts   = parseExtensions();
+  const outPath= document.getElementById('outputPath').value || null;
+  const models = [];
+  if(modelMS)    models.push('msclap');
+  if(modelLaion) models.push('laion');
+
+  if(!dir || !tags.length || !models.length) return;
+
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('btnRun').textContent = '⟳ running…';
+  document.getElementById('msBar').style.width = '0%';
+  document.getElementById('laionBar').style.width = '0%';
+  document.getElementById('msStage').textContent = '';
+  document.getElementById('laionStage').textContent = '';
+  document.getElementById('logBox').innerHTML = '';
+  document.getElementById('progressSection').style.display = 'block';
+
+  await api.run_analysis(dir, tags, models, exts, outPath);
+}
+
+async function exportJSON() {
+  if(!data) return;
+  const api = window.pywebview?.api;
+  if(!api) return;
+  const res = await api.pick_output_file();
+  if(!res.path) return;
+  const r = await api.save_json(data, res.path);
+  if(r.ok) log(`saved → ${r.path}`, 'ok');
+  else log(`✗ ${r.error}`, 'err');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// helpers
+// ══════════════════════════════════════════════════════════════════════════════
+function parseTags() {
+  return document.getElementById('tagsInput').value
+    .split(',').map(s=>s.trim()).filter(Boolean);
+}
+function parseExtensions() {
+  return document.getElementById('extInput').value
+    .split(',').map(s=>s.trim()).filter(Boolean);
+}
+function log(msg, cls='') {
+  const box = document.getElementById('logBox');
+  const d = document.createElement('div');
+  d.className = 'log-line ' + cls;
+  d.textContent = msg;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// tab switching
+// ══════════════════════════════════════════════════════════════════════════════
+function switchTab(el, page) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('page-'+page).classList.add('active');
+  if(page==='matrix' && data) buildMatrix();
+  if(page==='diff'   && data) buildDiff();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// data ingestion
+// ══════════════════════════════════════════════════════════════════════════════
+function setData(d) {
+  data = d;
+  const meta = d.metadata || {};
+  activeTags  = new Set(meta.tags || []);
+  activeFiles = new Set(meta.audio_files || []);
+
+  // tag input
+  document.getElementById('tagsInput').value = (meta.tags||[]).join(', ');
+  updateTagPreview();
+  updateRunBtn();
+
+  buildVisFilters();
+  renderAll();
+  showResultSummary();
+}
+
+function showResultSummary() {
+  const el = document.getElementById('resultSummary');
+  document.getElementById('setupEmpty').style.display = 'none';
+  el.style.display = 'block';
+  const meta = data.metadata || {};
+  el.innerHTML = `
+    <div class="metrics">
+      <div class="metric"><div class="mk">files</div><div class="mv">${(meta.audio_files||[]).length}</div></div>
+      <div class="metric"><div class="mk">tags</div><div class="mv">${(meta.tags||[]).length}</div></div>
+      <div class="metric"><div class="mk">MS-CLAP pairs</div><div class="mv">${countPairs('msclap')}</div></div>
+      <div class="metric"><div class="mk">LAION pairs</div><div class="mv">${countPairs('laion')}</div></div>
+    </div>
+    <div class="card" style="margin-top:0">
+      <div style="font-size:11px;color:var(--text2);line-height:1.9">
+        <div><span style="color:var(--text3)">directory</span>&nbsp;&nbsp;${meta.audio_dir||'—'}</div>
+        <div><span style="color:var(--text3)">created</span>&nbsp;&nbsp;&nbsp;${(meta.created||'').replace('T',' ').replace('Z','')}</div>
+        <div><span style="color:var(--text3)">models</span>&nbsp;&nbsp;&nbsp;&nbsp;${(meta.models||[]).join(', ')}</div>
+        <div><span style="color:var(--text3)">tags</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${(meta.tags||[]).join(' · ')}</div>
+      </div>
+    </div>`;
+}
+
+function countPairs(model) {
+  return (data[model]||[]).reduce((s,f)=>s+(f.pairs||[]).length, 0);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// filter chips
+// ══════════════════════════════════════════════════════════════════════════════
+function buildVisFilters() {
+  const meta = data.metadata || {};
+  const tc = document.getElementById('visTagChips');
+  tc.innerHTML = (meta.tags||[]).map(t =>
+    `<span class="chip on-purple" onclick="toggleTag(this,'${t}')">${t}</span>`
+  ).join('');
+  const fc = document.getElementById('visFileChips');
+  fc.innerHTML = (meta.audio_files||[]).map(f =>
+    `<span class="chip on-amber" onclick="toggleFile(this,'${f}')">${f}</span>`
+  ).join('');
+}
+function toggleTag(el, t) {
+  if(activeTags.has(t)) activeTags.delete(t); else activeTags.add(t);
+  el.classList.toggle('on-purple', activeTags.has(t));
+  el.classList.toggle('chip', true);
+  if(!activeTags.has(t)) el.style.opacity='0.4'; else el.style.opacity='1';
+  renderAll();
+}
+function toggleFile(el, f) {
+  if(activeFiles.has(f)) activeFiles.delete(f); else activeFiles.add(f);
+  if(!activeFiles.has(f)) el.style.opacity='0.4'; else el.style.opacity='1';
+  renderAll();
+}
+
+function filteredPairs(modelKey) {
+  return (data[modelKey]||[])
+    .filter(fo => activeFiles.has(fo.file))
+    .flatMap(fo => (fo.pairs||[]).filter(p => activeTags.has(p.text_label)));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// canvas drawing
+// ══════════════════════════════════════════════════════════════════════════════
+const TAG_COLORS = ['#AFA9EC','#5DCAA5','#F0997B','#EF9F27','#97C459','#F4C0D1','#85B7EB','#E24B4A','#D4537E'];
+function tagColor(tag) {
+  const allTags = Array.from(activeTags);
+  return TAG_COLORS[allTags.indexOf(tag) % TAG_COLORS.length];
+}
+
+function drawField(canvasId, pairs, statsId) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#1c1d24'; ctx.fillRect(0,0,W,H);
+
+  // grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 0.5;
+  for(let i=1;i<4;i++) {
+    ctx.beginPath(); ctx.moveTo(W/4*i,0); ctx.lineTo(W/4*i,H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,H/4*i); ctx.lineTo(W,H/4*i); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.09)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+
+  // rings
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 0.5;
+  [.25,.5,.75,1].forEach(f => {
+    ctx.beginPath(); ctx.arc(W/2,H/2,W/2*f,0,Math.PI*2); ctx.stroke();
+  });
+
+  // axis labels
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.font = '10px monospace';
+  ctx.fillText('−1',5,H/2-4); ctx.fillText('0',W/2+4,H/2-4); ctx.fillText('+1',W-20,H/2-4);
+  ctx.fillText('near',W/2+4,13); ctx.fillText('far',W/2+4,H-5);
+
+  if(!pairs.length) {
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('no data — adjust filters', W/2, H/2);
+    ctx.textAlign = 'left';
+    document.getElementById(statsId).textContent = 'no data';
+    return;
+  }
+
+  const fileList = [...new Set(pairs.map(p=>p.audio_label))];
+
+  pairs.forEach((p, i) => {
+    const sim = p.cosine_similarity;
+    const cx  = (sim + 1) / 2 * W;
+    const fi  = fileList.indexOf(p.audio_label);
+    const dist= 1 - Math.abs(sim);
+    const sign= (fi % 2 === 0 ? 1 : -1) * (Math.floor(fi/2)%2===0 ? 1 : 0.65);
+    const cy  = H/2 + dist*(H*0.38)*sign + (i%3-1)*7;
+    const r   = 5 + Math.abs(sim) * 4;
+    const col = tagColor(p.text_label);
+
+    // audio node
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(175,169,236,0.65)'; ctx.fill();
+    ctx.strokeStyle = '#AFA9EC'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // text node
+    const tx = Math.min(W-8, cx + r*2 + 7);
+    const tr = r * 0.75;
+    ctx.beginPath(); ctx.arc(tx, cy, tr, 0, Math.PI*2);
+    ctx.fillStyle = col + 'aa'; ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.stroke();
+
+    // connector
+    ctx.beginPath(); ctx.moveTo(cx+r, cy); ctx.lineTo(tx-tr, cy);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 0.8; ctx.stroke();
+
+    // labels
+    ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '9px monospace';
+    ctx.fillText(p.audio_label.replace(/\.[^.]+$/, '').slice(0,11), cx-r, cy-r-3);
+    ctx.fillStyle = col+'88'; ctx.font = '9px monospace';
+    ctx.fillText(p.text_label.slice(0,11), tx+tr+2, cy+3);
+  });
+
+  const sims = pairs.map(p=>p.cosine_similarity);
+  const avg = sims.reduce((a,b)=>a+b,0)/sims.length;
+  const mx = Math.max(...sims), mn = Math.min(...sims);
+  document.getElementById(statsId).textContent =
+    `${pairs.length} pairs · avg ${avg.toFixed(3)} · max ${mx.toFixed(3)} · min ${mn.toFixed(3)}`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// metrics strip
+// ══════════════════════════════════════════════════════════════════════════════
+function renderMetrics() {
+  const msP = filteredPairs('msclap'), laP = filteredPairs('laion');
+  const avgOf = arr => arr.length ? arr.reduce((s,p)=>s+p.cosine_similarity,0)/arr.length : null;
+  const msAvg = avgOf(msP), laAvg = avgOf(laP);
+  const cls = v => v === null ? '' : v > 0.5 ? 'hi' : v > 0 ? 'md' : 'lo';
+  document.getElementById('visMetrics').innerHTML = `
+    <div class="metric"><div class="mk">MS-CLAP pairs</div><div class="mv">${msP.length}</div></div>
+    <div class="metric"><div class="mk">MS-CLAP avg sim</div><div class="mv ${cls(msAvg)}">${msAvg !== null ? msAvg.toFixed(3) : '—'}</div></div>
+    <div class="metric"><div class="mk">LAION pairs</div><div class="mv">${laP.length}</div></div>
+    <div class="metric"><div class="mk">LAION avg sim</div><div class="mv ${cls(laAvg)}">${laAvg !== null ? laAvg.toFixed(3) : '—'}</div></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// matrix
+// ══════════════════════════════════════════════════════════════════════════════
+function setMatrixModel(m) {
+  matrixModel = m;
+  document.getElementById('btnMatMS').style.borderColor    = m==='msclap' ? 'rgba(175,169,236,.5)' : '';
+  document.getElementById('btnMatMS').style.color          = m==='msclap' ? 'var(--purple)' : '';
+  document.getElementById('btnMatLaion').style.borderColor = m==='laion'  ? 'rgba(93,202,165,.5)'  : '';
+  document.getElementById('btnMatLaion').style.color       = m==='laion'  ? 'var(--teal)'  : '';
+  buildMatrix();
+}
+function buildMatrix() {
+  if(!data) return;
+  document.getElementById('matEmpty').style.display   = 'none';
+  document.getElementById('matContent').style.display = 'block';
+  const files  = (data[matrixModel]||[]).filter(f => activeFiles.has(f.file));
+  const tags   = Array.from(activeTags);
+  const inner  = document.getElementById('matrixInner');
+  if(!files.length) { inner.innerHTML = '<div style="padding:20px;color:var(--text3)">no files selected</div>'; return; }
+  let html = '<table><thead><tr><th>file \\ tag</th>';
+  tags.forEach(t => html += `<th>${t}</th>`);
+  html += '</tr></thead><tbody>';
+  files.forEach(fo => {
+    html += `<tr><td>${fo.file}</td>`;
+    tags.forEach(tag => {
+      const pair = (fo.pairs||[]).find(p => p.text_label===tag);
+      if(!pair) { html += '<td style="color:var(--text3)">—</td>'; return; }
+      const sim = pair.cosine_similarity;
+      const r   = sim > 0 ? Math.round(sim*55)   : 0;
+      const g   = sim > 0 ? Math.round(30+sim*55) : Math.round((1+sim)*18);
+      const b   = sim < 0 ? Math.round(Math.abs(sim)*75) : 0;
+      const bg  = `rgba(${r},${g+35},${b+35},0.32)`;
+      html += `<td class="cell" style="background:${bg};color:rgba(255,255,255,.8)"
+                 onclick="sonifySingle('${matrixModel}','${fo.file}','${tag}')"
+                 title="${fo.file} / ${tag}">${sim.toFixed(3)}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  inner.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// diff view
+// ══════════════════════════════════════════════════════════════════════════════
+function buildDiff() {
+  if(!data) return;
+  document.getElementById('diffEmpty').style.display   = 'none';
+  document.getElementById('diffContent').style.display = 'block';
+  const msFiles = data.msclap||[], laFiles = data.laion||[];
+  const diffs = [];
+  msFiles.forEach(mf => {
+    if(!activeFiles.has(mf.file)) return;
+    const lf = laFiles.find(f=>f.file===mf.file); if(!lf) return;
+    (mf.pairs||[]).forEach(mp => {
+      if(!activeTags.has(mp.text_label)) return;
+      const lp = (lf.pairs||[]).find(p=>p.text_label===mp.text_label); if(!lp) return;
+      const d = Math.abs(mp.cosine_similarity - lp.cosine_similarity);
+      diffs.push({file:mf.file, tag:mp.text_label, ms:mp.cosine_similarity, laion:lp.cosine_similarity, diff:d});
+    });
+  });
+
+  if(!diffs.length) {
+    document.getElementById('diffInner').innerHTML = '<div style="padding:20px;color:var(--text3)">need both models with overlapping files & tags</div>';
+    document.getElementById('diffMetrics').innerHTML = '';
+    return;
+  }
+  diffs.sort((a,b)=>b.diff-a.diff);
+  const maxD   = diffs[0].diff;
+  const avgD   = diffs.reduce((s,d)=>s+d.diff,0)/diffs.length;
+  const highD  = diffs.filter(d=>d.diff>0.2).length;
+
+  document.getElementById('diffMetrics').innerHTML = `
+    <div class="metric"><div class="mk">total pairs</div><div class="mv">${diffs.length}</div></div>
+    <div class="metric"><div class="mk">avg |Δ|</div><div class="mv ${avgD>0.15?'lo':avgD>0.08?'md':'hi'}">${avgD.toFixed(3)}</div></div>
+    <div class="metric"><div class="mk">max |Δ|</div><div class="mv ${maxD>0.2?'lo':'md'}">${maxD.toFixed(3)}</div></div>
+    <div class="metric"><div class="mk">high disagree (>0.2)</div><div class="mv ${highD>0?'lo':''}">${highD}</div></div>`;
+
+  document.getElementById('diffInner').innerHTML = diffs.map(d => `
+    <div class="diff-row">
+      <span style="min-width:130px;color:var(--text2)">${d.file.slice(0,15)}</span>
+      <span style="min-width:110px">${d.tag.slice(0,13)}</span>
+      <span style="color:var(--purple);min-width:54px">${d.ms.toFixed(3)}</span>
+      <span style="color:var(--teal);min-width:54px">${d.laion.toFixed(3)}</span>
+      <div class="diffbar" style="width:${Math.round(d.diff/maxD*160)}px;
+           background:${d.diff>0.2?'var(--red)':d.diff>0.1?'var(--amber)':'rgba(255,255,255,.15)'}"></div>
+      <span style="color:${d.diff>0.2?'var(--red)':d.diff>0.1?'var(--amber)':'var(--text2)'}">${d.diff.toFixed(3)}</span>
+      <button class="btn btn-sm" style="margin-left:auto;padding:2px 8px;font-size:10px"
+        onclick="sonifyDiffPair('${d.file}','${d.tag}')">▶</button>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// render all views
+// ══════════════════════════════════════════════════════════════════════════════
+function renderAll() {
+  if(!data) return;
+  document.getElementById('visEmpty').style.display   = 'none';
+  document.getElementById('visContent').style.display = 'block';
+  drawField('fieldMS',    filteredPairs('msclap'), 'statsMS');
+  drawField('fieldLaion', filteredPairs('laion'),  'statsLaion');
+  renderMetrics();
+  if(document.getElementById('page-matrix').classList.contains('active')) buildMatrix();
+  if(document.getElementById('page-diff').classList.contains('active'))   buildDiff();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// audio (Web Audio API)
+// ══════════════════════════════════════════════════════════════════════════════
+function ensureCtx() {
+  if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+  if(actx.state==='suspended') actx.resume();
+}
+function playTone(pan, freq, gain, durMs, wave) {
+  const t = actx.currentTime, dur = durMs/1000;
+  const osc = actx.createOscillator();
+  const g   = actx.createGain();
+  const p_  = actx.createStereoPanner();
+  osc.type = wave; osc.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(gain, t+0.025);
+  g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  p_.pan.setValueAtTime(Math.max(-1,Math.min(1,pan)), t);
+  osc.connect(g); g.connect(p_); p_.connect(actx.destination);
+  osc.start(t); osc.stop(t+dur+0.05);
+}
+function sonifyPair(pair, baseFreq, durMs, wave, offset=0) {
+  const sp  = pair.spatial;
+  const f   = baseFreq * sp.freq_multiplier;
+  setTimeout(() => {
+    playTone(sp.audio_pan, f,       sp.gain,      durMs,      wave);
+    playTone(sp.text_pan,  f*1.5,   sp.gain*0.6,  durMs*0.7,  'triangle');
+  }, offset);
+}
+
+function sonifySingle(modelKey, file, tag) {
+  ensureCtx();
+  const fo = (data[modelKey]||[]).find(f=>f.file===file); if(!fo) return;
+  const pair = (fo.pairs||[]).find(p=>p.text_label===tag); if(!pair) return;
+  const bf = parseInt(document.getElementById('rFreq').value);
+  const dur= parseInt(document.getElementById('rDur').value);
+  const w  = document.getElementById('selWave').value;
+  sonifyPair(pair, bf, dur, w);
+  document.getElementById('playStatus').textContent = `♪ ${file} / "${tag}"`;
+  setTimeout(()=>document.getElementById('playStatus').textContent='idle', dur+300);
+}
+
+function sonifyDiffPair(file, tag) {
+  ensureCtx();
+  const mfo = (data.msclap||[]).find(f=>f.file===file);
+  const lfo = (data.laion||[]).find(f=>f.file===file);
+  const bf  = parseInt(document.getElementById('rFreq').value);
+  const dur = parseInt(document.getElementById('rDur').value);
+  const w   = document.getElementById('selWave').value;
+  if(mfo) { const p=(mfo.pairs||[]).find(p=>p.text_label===tag); if(p) sonifyPair(p,bf,dur,w,0); }
+  if(lfo) { const p=(lfo.pairs||[]).find(p=>p.text_label===tag); if(p) sonifyPair(p,bf,dur,w,90); }
+}
+
+function playAll() {
+  if(isPlaying) { stopAll(); return; }
+  ensureCtx();
+  const bf   = parseInt(document.getElementById('rFreq').value);
+  const dur  = parseInt(document.getElementById('rDur').value);
+  const intv = parseInt(document.getElementById('rInt').value);
+  const w    = document.getElementById('selWave').value;
+  const mode = document.getElementById('selMode').value;
+  const msP  = filteredPairs('msclap');
+  const laP  = filteredPairs('laion');
+
+  let queue = [];
+  if(mode === 'simultaneous') {
+    const n = Math.max(msP.length, laP.length);
+    for(let i=0;i<n;i++) queue.push({ms:msP[i]||null, laion:laP[i]||null, label:`pair ${i+1}/${n}`});
+  } else if(mode === 'diff') {
+    const diffs = [];
+    (data.msclap||[]).forEach(mf => {
+      if(!activeFiles.has(mf.file)) return;
+      const lf = (data.laion||[]).find(f=>f.file===mf.file); if(!lf) return;
+      (mf.pairs||[]).forEach(mp => {
+        if(!activeTags.has(mp.text_label)) return;
+        const lp=(lf.pairs||[]).find(p=>p.text_label===mp.text_label); if(!lp) return;
+        diffs.push({ms:mp,laion:lp,diff:Math.abs(mp.cosine_similarity-lp.cosine_similarity),label:`Δ${Math.abs(mp.cosine_similarity-lp.cosine_similarity).toFixed(3)} ${mp.audio_label}/"${mp.text_label}"`});
+      });
+    });
+    diffs.sort((a,b)=>b.diff-a.diff);
+    queue = diffs.map(d=>({ms:d.ms,laion:d.laion,label:d.label}));
+  } else {
+    queue = [
+      ...msP.map(p=>({ms:p,laion:null,label:`MS: ${p.audio_label}/"${p.text_label}"`})),
+      ...laP.map(p=>({ms:null,laion:p,label:`LAION: ${p.audio_label}/"${p.text_label}"`})),
+    ];
+  }
+  if(!queue.length) return;
+  isPlaying = true; let idx = 0;
+  const step = () => {
+    if(!isPlaying||idx>=queue.length) { stopAll(); return; }
+    const item = queue[idx];
+    if(item.ms)    sonifyPair(item.ms,    bf, dur, w, 0);
+    if(item.laion) sonifyPair(item.laion, bf, dur, w, mode==='sequential'?0:80);
+    document.getElementById('playStatus').textContent = `▶ ${item.label}`;
+    idx++; playTimer = setTimeout(step, intv);
+  };
+  step();
+}
+
+function stopAll() {
+  clearTimeout(playTimer); isPlaying = false;
+  document.getElementById('playStatus').textContent = 'idle';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// demo / stub when running outside pywebview
+// ══════════════════════════════════════════════════════════════════════════════
+window.addEventListener('pywebviewready', () => { console.log('pywebview bridge ready'); });
+
+// If loaded directly in browser (no Python), show a demo button
+if(typeof window.pywebview === 'undefined') {
+  setTimeout(() => {
+    if(typeof window.pywebview === 'undefined') {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-sm'; btn.style.cssText = 'margin-top:6px;width:100%;justify-content:center';
+      btn.textContent = '⚡ load demo data (browser mode)';
+      btn.onclick = loadDemoData;
+      document.getElementById('sidebarInner').appendChild(btn);
+    }
+  }, 500);
+}
+
+function loadDemoData() {
+  const tags  = ['dog barking','rain','speech','music','silence'];
+  const files = ['bark_001.wav','rain_loop.wav','piano_c.wav','hello_world.wav'];
+  function rp() { return parseFloat((Math.random()*2-1).toFixed(4)); }
+  function mkPairs(prefix, file, tags) {
+    return tags.map(tag => {
+      const sim = rp();
+      return { id:`${prefix}_${file}_${tag}`, audio_label:file, audio_path:`./audio/${file}`,
+               text_label:tag, cosine_similarity:sim, cosine_distance:parseFloat((1-sim).toFixed(4)),
+               spatial:{pan:sim,audio_pan:parseFloat((sim-.15).toFixed(4)),text_pan:parseFloat((sim+.15).toFixed(4)),
+                        distance_from_origin:parseFloat((1-Math.abs(sim)).toFixed(4)),
+                        freq_multiplier:parseFloat((.5+sim*1.5).toFixed(4)),
+                        gain:parseFloat((.3+Math.max(0,sim)*.5).toFixed(4))}};
+    });
+  }
+  setData({
+    metadata:{ created:new Date().toISOString(), audio_dir:'./audio/demo', tags, audio_files:files, models:['msclap','laion'] },
+    msclap: files.map(f=>({file:f,path:`./audio/${f}`,pairs:mkPairs('msclap',f,tags)})),
+    laion:  files.map(f=>({file:f,path:`./audio/${f}`,pairs:mkPairs('laion', f,tags)})),
+  });
+  switchTab(document.querySelector('[data-page="visualise"]'), 'visualise');
+}
+</script>
+</body>
+</html>
